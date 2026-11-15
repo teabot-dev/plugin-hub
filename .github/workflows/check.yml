@@ -1,0 +1,52 @@
+name: Check listings
+# Runs each changed listing's plugin: its install, `teabot check` and its tests. It runs a stranger's code, so it has
+# read-only rights and no secrets; comment.yml posts its report from a separate run.
+on:
+  pull_request:
+    paths: ["plugins/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: teabot_owner
+          POSTGRES_PASSWORD: teabot
+          POSTGRES_DB: teabot
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U teabot_owner -d teabot"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Check the changed listings
+        env:
+          BASE: origin/${{ github.base_ref }}
+          HUB_BASE: origin/${{ github.base_ref }}
+          TEABOT_TEST_PG_PORT: "55432"
+        run: |
+          git diff --name-only --no-renames "$BASE"...HEAD -- plugins > changed.txt
+          uv run hub-check $(cat changed.txt)
+      - name: Keep the report for the comment
+        if: always()
+        env:
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p out
+          echo "$NUMBER" > out/number
+          cp report.md out/ 2>/dev/null || echo "The checks stopped before writing a report; see the run's log." > out/report.md
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: report
+          path: out/

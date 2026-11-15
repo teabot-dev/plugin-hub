@@ -1,0 +1,94 @@
+"""The hub's tools: listings, inspecting a plugin's checkout, and the catalogue."""
+
+import textwrap
+from pathlib import Path
+
+import pytest
+
+from hub.catalogue import entry, page
+from hub.inspect import connections, inspect
+from hub.manifest import Listing, ListingError, read_listing
+
+COMMIT = "9db374fc205c5aae1f99bd5fd127266076f40ec8"
+
+
+def listing_file(tmp_path: Path, name: str, text: str) -> Path:
+    path = tmp_path / name
+    path.write_text(text)
+    return path
+
+
+def test_a_listing_is_two_lines_naming_a_repository_and_a_commit(tmp_path: Path) -> None:
+    path = listing_file(tmp_path, "wom", f"repository=https://github.com/someone/teabot-wom.git\ncommit={COMMIT}\n")
+    found = read_listing(path)
+    assert found == Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
+    assert found.requirement == f"teabot-wom @ git+https://github.com/someone/teabot-wom.git@{COMMIT}"
+
+
+@pytest.mark.parametrize(
+    ("name", "text", "says"),
+    [
+        ("Wom", f"repository=https://github.com/a/b\ncommit={COMMIT}", "named for its plugin's id"),
+        ("wom", "repository=https://github.com/a/b\n", "missing commit"),
+        ("wom", f"repository=http://example.com/a\ncommit={COMMIT}", "public HTTPS clone URL"),
+        ("wom", "repository=https://github.com/a/b\ncommit=main", "40-character hash"),
+        ("wom", f"repository=https://github.com/a/b\ncommit={COMMIT}\nbranch=main", "write only"),
+    ],
+)
+def test_a_wrong_listing_says_what_to_write(tmp_path: Path, name: str, text: str, says: str) -> None:
+    with pytest.raises(ListingError, match=says):
+        read_listing(listing_file(tmp_path, name, text))
+
+
+def plugin_checkout(root: Path, *, name: str = "teabot-wom", teabot: str = "teabot>=1.4,<2") -> Path:
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        textwrap.dedent(
+            f"""
+            [project]
+            name = "{name}"
+            version = "1.0.0"
+            description = "Wise Old Man lookups"
+            dependencies = ["{teabot}", "rapidfuzz>=3"]
+
+            [project.entry-points."teabot.plugins"]
+            wom = "teabot_wom:plugin"
+            """
+        )
+    )
+    (root / "README.md").write_text("# wom\n\n## External connections\n\napi.wiseoldman.net\n\n## Settings\n\nNone.\n")
+    (root / "LICENSE").write_text("MIT License\n")
+    return root
+
+
+def test_a_checkout_is_read_without_running_it(tmp_path: Path) -> None:
+    listing = Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
+    plugin = inspect(listing, plugin_checkout(tmp_path / "wom"))
+    assert plugin.problems == []
+    assert (plugin.package, plugin.version, plugin.teabot) == ("teabot-wom", "1.0.0", ">=1.4,<2")
+    assert plugin.connections == "api.wiseoldman.net"
+    assert plugin.dependencies == ["rapidfuzz>=3"]
+    assert plugin.licence == "MIT License"
+
+
+def test_a_misnamed_package_and_an_open_range_are_problems(tmp_path: Path) -> None:
+    listing = Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
+    plugin = inspect(listing, plugin_checkout(tmp_path / "wom", name="wom", teabot="teabot>=1.4"))
+    assert any("name it teabot-wom" in p for p in plugin.problems)
+    assert any("upper bound" in p for p in plugin.problems)
+
+
+def test_external_connections_are_read_inline_or_as_a_section() -> None:
+    assert connections("- External connections: none\n") == "none"
+    assert connections("# x\n\n## External connections\n\nA and B.\n\n## Next\n") == "A and B."
+
+
+def test_the_page_escapes_what_plugins_write_and_shows_the_install_line(tmp_path: Path) -> None:
+    listing = Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
+    plugin = inspect(listing, plugin_checkout(tmp_path / "wom"))
+    plugin.description = "<script>alert(1)</script>"
+    shown = page([entry(plugin)], "now")
+    assert "<script>alert" not in shown and "&lt;script&gt;" in shown
+    assert f'uv add "teabot-wom @ git+https://github.com/someone/teabot-wom.git@{COMMIT}"' in shown.replace(
+        "&quot;", '"'
+    )

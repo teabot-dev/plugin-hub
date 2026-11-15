@@ -1,0 +1,33 @@
+name: Publish the catalogue
+# Rebuilds catalogue.json and the hub's page from every listing on main, and publishes them on GitHub Pages.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv run hub-catalogue
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v5.0.1
