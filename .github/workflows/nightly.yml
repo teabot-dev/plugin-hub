@@ -1,0 +1,35 @@
+name: Resolve the catalogue
+# Every night, whether the newest teabot and every listed plugin still install together. An upstream release can
+# break that with no pull request here, so a clash opens an issue instead of failing someone's pull request.
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+      - id: resolve
+        run: uv run hub-resolve > resolve.txt 2>&1
+      - name: Open an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          title="The listed plugins no longer install together"
+          open=$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number -q '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --repo "$REPO" --body-file resolve.txt
+          else
+            gh issue create --repo "$REPO" --title "$title" --body-file resolve.txt
+          fi

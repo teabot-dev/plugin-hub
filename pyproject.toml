@@ -8,6 +8,7 @@ dependencies = ["teabot>=1.3"]
 [project.scripts]
 hub-check = "hub.check:main"
 hub-catalogue = "hub.catalogue:main"
+hub-resolve = "hub.resolve:main"
 
 [dependency-groups]
 dev = ["pytest>=9.2", "ruff>=0.17", "pyright>=1.1.414"]

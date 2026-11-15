@@ -7,6 +7,7 @@ a separate workflow posts on the pull request, so no step that runs a plugin's c
 """
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,8 @@ from hub.manifest import Listing, ListingError, read_listing
 
 TAIL = 40
 REPORT = Path("report.md")
+ALLOWED = Path("allowed-dependencies.txt")
+REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)")
 
 
 @dataclass(frozen=True)
@@ -46,10 +49,52 @@ def run(name: str, command: list[str], cwd: Path) -> Step:
     return Step(name, done.returncode == 0, "\n".join(lines[-TAIL:]))
 
 
+def allowed() -> frozenset[str]:
+    """The packages, beyond teabot's own, that listed plugins may depend on, as normalised names."""
+    lines = ALLOWED.read_text().splitlines() if ALLOWED.exists() else []
+    return frozenset(_normal(line) for line in lines if line.strip() and not line.lstrip().startswith("#"))
+
+
+def _normal(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name.strip()).lower()
+
+
+def beyond_teabot(root: Path) -> list[str] | None:
+    """Every package the plugin installs that teabot does not, transitive ones included, from its lock; None
+    when uv cannot say."""
+    command = ["uv", "export", "--no-dev", "--no-hashes", "--no-emit-project", "--prune", "teabot"]
+    env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT")}
+    done = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True, check=False)
+    if done.returncode != 0:
+        return None
+    lines = [line for line in done.stdout.splitlines() if line and not line.startswith(("#", " "))]
+    names = [REQUIREMENT_NAME.match(line) for line in lines]
+    return sorted({_normal(m.group(1)) for m in names if m is not None})
+
+
+def dependency_step(root: Path, permitted: frozenset[str]) -> Step:
+    """Whether every package the plugin adds to an instance is on the hub's allowlist."""
+    found = beyond_teabot(root)
+    if found is None:
+        return Step("dependencies", False, "uv could not list the plugin's dependencies")
+    outside = [name for name in found if name not in permitted]
+    if outside:
+        listed = ", ".join(outside)
+        return Step(
+            "dependencies",
+            False,
+            f"Not on the hub's allowlist: {listed}. Each needs a reason, in a pull request adding it to "
+            f"{ALLOWED}, which a maintainer reviews on its own.",
+        )
+    return Step("dependencies", True, f"Beyond teabot's own: {', '.join(found) or 'none'}")
+
+
 def checked(root: Path) -> list[Step]:
-    """The plugin's own checks, in its own environment: install, `teabot check`, then its tests."""
+    """The plugin's own checks, in its own environment: install, its dependencies against the allowlist,
+    `teabot check`, then its tests."""
     steps = [run("install", ["uv", "sync"], root)]
     if steps[0].passed:
+        steps.append(dependency_step(root, allowed()))
         steps.append(run("teabot check", ["uv", "run", "teabot", "check", "."], root))
         steps.append(run("tests", ["uv", "run", "pytest", "-q"], root))
     return steps

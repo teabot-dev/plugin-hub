@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from hub import check
 from hub.catalogue import entry, page
 from hub.inspect import connections, inspect
 from hub.manifest import Listing, ListingError, read_listing
+from hub.resolve import project
 
 COMMIT = "9db374fc205c5aae1f99bd5fd127266076f40ec8"
 
@@ -92,3 +94,20 @@ def test_the_page_escapes_what_plugins_write_and_shows_the_install_line(tmp_path
     assert f'uv add "teabot-wom @ git+https://github.com/someone/teabot-wom.git@{COMMIT}"' in shown.replace(
         "&quot;", '"'
     )
+
+
+def test_a_dependency_outside_the_allowlist_is_named(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def found(root: Path) -> list[str]:
+        return ["rapidfuzz", "typing-extensions"]
+
+    monkeypatch.setattr(check, "beyond_teabot", found)
+    step = check.dependency_step(tmp_path, frozenset({"typing-extensions"}))
+    assert not step.passed and "rapidfuzz" in step.output and "typing-extensions" not in step.output
+    assert check.dependency_step(tmp_path, frozenset({"rapidfuzz", "typing-extensions"})).passed
+
+
+def test_the_resolve_project_holds_teabot_and_every_listing() -> None:
+
+    listing = Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
+    text = project([listing])
+    assert '"teabot"' in text and listing.requirement in text
