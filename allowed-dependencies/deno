@@ -1,0 +1,1 @@
+music (teabot-music) needs Deno for yt-dlp, which runs YouTube's challenge scripts in it to get a track's stream. The deno package ships the Deno runtime from PyPI.
