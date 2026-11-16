@@ -124,6 +124,7 @@ def section(plugin: Plugin, steps: list[Step], before: str | None) -> list[str]:
     elif before is None:
         lines.append("- A new plugin.")
     lines.append(f"- Package `{plugin.package}` {plugin.version}, for teabot `{plugin.teabot}`")
+    lines.append(f"- Author: {plugin.author or 'not named'}")
     lines.append(f"- External connections: {plugin.connections or 'not given'}")
     others = ", ".join(f"`{d}`" for d in plugin.dependencies) or "none"
     lines.append(f"- Dependencies beyond teabot, for a maintainer to review: {others}")

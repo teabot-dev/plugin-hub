@@ -6,7 +6,7 @@ import subprocess
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from hub.manifest import Listing
 
@@ -23,6 +23,7 @@ class Plugin:
     package: str = ""
     version: str = ""
     description: str = ""
+    author: str = ""
     teabot: str = ""
     dependencies: list[str] = field(default_factory=list[str])
     readme: str = ""
@@ -67,6 +68,11 @@ def _project(plugin: Plugin, project: dict[str, Any]) -> None:
     plugin.package = str(project.get("name", ""))
     plugin.version = str(project.get("version", ""))
     plugin.description = str(project.get("description", ""))
+    entries: list[Any] = list(project.get("authors", []))
+    authors = [str(cast(dict[str, Any], a).get("name", "")).strip() for a in entries if isinstance(a, dict)]
+    plugin.author = ", ".join(a for a in authors if a)
+    if not plugin.author:
+        plugin.problems.append('its pyproject.toml names its author, which the hub shows: authors = [{ name = "you" }]')
     if plugin.package != f"teabot-{listing.id}":
         plugin.problems.append(f"the package is named {plugin.package!r}; name it teabot-{listing.id}")
     entry_points = project.get("entry-points", {}).get("teabot.plugins", {})

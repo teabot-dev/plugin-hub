@@ -40,6 +40,7 @@ def entry(plugin: Plugin, versions: list[dict[str, Any]] | None = None) -> dict[
         "package": plugin.package,
         "version": plugin.version,
         "description": plugin.description,
+        "author": plugin.author,
         "teabot": plugin.teabot,
         "repository": listing.repository.removesuffix(".git"),
         "commit": listing.commit,

@@ -50,6 +50,7 @@ def plugin_checkout(root: Path, *, name: str = "teabot-wom", teabot: str = "teab
             [project]
             name = "{name}"
             version = "1.0.0"
+            authors = [{{ name = "Sam" }}]
             description = "Wise Old Man lookups"
             dependencies = ["{teabot}", "rapidfuzz>=3"]
 
@@ -127,11 +128,19 @@ def test_every_reviewed_version_comes_from_the_listings_history(
     (tmp_path / "plugins").mkdir()
     older, newer = "a" * 40, "b" * 40
     for commit in (older, newer):
-        (tmp_path / "plugins" / "wom").write_text(
-            f"repository=https://github.com/s/teabot-wom.git\ncommit={commit}\n"
-        )
+        (tmp_path / "plugins" / "wom").write_text(f"repository=https://github.com/s/teabot-wom.git\ncommit={commit}\n")
         git("add", "-A")
         git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", commit[:4])
     monkeypatch.chdir(tmp_path)
     current = read_listing(Path("plugins/wom"))
     assert [v.commit for v in history(current)] == [newer, older]
+
+
+def test_a_plugin_must_name_its_author(tmp_path: Path) -> None:
+    listing = Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
+    root = plugin_checkout(tmp_path / "wom")
+    named = inspect(listing, root)
+    assert named.author == "Sam" and named.problems == []
+    project = (root / "pyproject.toml").read_text().replace('authors = [{ name = "Sam" }]\n', "")
+    (root / "pyproject.toml").write_text(project)
+    assert any("names its author" in p for p in inspect(listing, root).problems)
