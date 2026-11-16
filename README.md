@@ -3,7 +3,7 @@
 This repository contains markers for Teabot plugins that are not supported by Teabot developers. Plugins are provided "as is"; we make no guarantees about any plugin. Core plugins are shipped insied Teabot and are not listed here.
 
 You can browse 3rd-part plugins at
-**https://teabot-dev.github.io/plugin-hub/**. 
+**https://teabot-dev.github.io/teabot/hub/**. 
 
 Self-hosted instances can also browse with `uv run teabot hub search`.
 
