@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from hub import check
-from hub.catalogue import REDIRECT
+from hub.catalogue import entry, page
 from hub.inspect import connections, inspect
 from hub.manifest import Listing, ListingError, read_listing
 from hub.resolve import project
@@ -85,6 +85,17 @@ def test_external_connections_are_read_inline_or_as_a_section() -> None:
     assert connections("# x\n\n## External connections\n\nA and B.\n\n## Next\n") == "A and B."
 
 
+def test_the_page_escapes_what_plugins_write_and_shows_the_install_line(tmp_path: Path) -> None:
+    listing = Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
+    plugin = inspect(listing, plugin_checkout(tmp_path / "wom"))
+    plugin.description = "<script>alert(1)</script>"
+    shown = page([entry(plugin)], "now")
+    assert "<script>alert" not in shown and "&lt;script&gt;" in shown
+    assert f'uv add "teabot-wom @ git+https://github.com/someone/teabot-wom.git@{COMMIT}"' in shown.replace(
+        "&quot;", '"'
+    )
+
+
 def test_a_dependency_outside_the_allowlist_is_named(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def found(root: Path) -> list[str]:
         return ["rapidfuzz", "typing-extensions"]
@@ -116,13 +127,11 @@ def test_every_reviewed_version_comes_from_the_listings_history(
     (tmp_path / "plugins").mkdir()
     older, newer = "a" * 40, "b" * 40
     for commit in (older, newer):
-        (tmp_path / "plugins" / "wom").write_text(f"repository=https://github.com/s/teabot-wom.git\ncommit={commit}\n")
+        (tmp_path / "plugins" / "wom").write_text(
+            f"repository=https://github.com/s/teabot-wom.git\ncommit={commit}\n"
+        )
         git("add", "-A")
         git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", commit[:4])
     monkeypatch.chdir(tmp_path)
     current = read_listing(Path("plugins/wom"))
     assert [v.commit for v in history(current)] == [newer, older]
-
-
-def test_the_hubs_own_page_sends_readers_to_the_docs() -> None:
-    assert "https://teabot-dev.github.io/teabot/hub/" in REDIRECT and 'http-equiv="refresh"' in REDIRECT
