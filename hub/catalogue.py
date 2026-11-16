@@ -1,7 +1,7 @@
 """`hub-catalogue`: the hub's catalogue, `site/catalogue.json`, from every listing, and `site/index.html`, which sends
 readers to the hub's pages in Teabot's documentation. Those pages are built from this catalogue.
 
-teabot's `teabot hub` commands, its dashboard and its documentation read the catalogue.
+teabot's `teabot hub` commands, each teabot's site and the documentation read the catalogue.
 """
 
 import json
