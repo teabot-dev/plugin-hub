@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from hub import check
-from hub.catalogue import entry, page
+from hub.catalogue import REDIRECT
 from hub.inspect import connections, inspect
 from hub.manifest import Listing, ListingError, read_listing
 from hub.resolve import project
@@ -86,17 +86,6 @@ def test_external_connections_are_read_inline_or_as_a_section() -> None:
     assert connections("# x\n\n## External connections\n\nA and B.\n\n## Next\n") == "A and B."
 
 
-def test_the_page_escapes_what_plugins_write_and_shows_the_install_line(tmp_path: Path) -> None:
-    listing = Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
-    plugin = inspect(listing, plugin_checkout(tmp_path / "wom"))
-    plugin.description = "<script>alert(1)</script>"
-    shown = page([entry(plugin)], "now")
-    assert "<script>alert" not in shown and "&lt;script&gt;" in shown
-    assert f'uv add "teabot-wom @ git+https://github.com/someone/teabot-wom.git@{COMMIT}"' in shown.replace(
-        "&quot;", '"'
-    )
-
-
 def test_a_dependency_outside_the_allowlist_is_named(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def found(root: Path) -> list[str]:
         return ["rapidfuzz", "typing-extensions"]
@@ -144,3 +133,7 @@ def test_a_plugin_must_name_its_author(tmp_path: Path) -> None:
     project = (root / "pyproject.toml").read_text().replace('authors = [{ name = "Sam" }]\n', "")
     (root / "pyproject.toml").write_text(project)
     assert any("names its author" in p for p in inspect(listing, root).problems)
+
+
+def test_the_hubs_own_page_sends_readers_to_the_docs() -> None:
+    assert "https://teabot-dev.github.io/teabot/hub/" in REDIRECT and 'http-equiv="refresh"' in REDIRECT
