@@ -1,0 +1,1 @@
+music (teabot-music) keeps requests for yt-dlp, its one default extra the plugin installs: without it, YouTube refused about 4 streams in 9, against 1 in 9 with it. The plugin's own code never imports it.
