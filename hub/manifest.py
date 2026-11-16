@@ -38,22 +38,27 @@ def read_listing(path: Path) -> Listing:
     """The listing in `path`. Raises `ListingError` naming each problem."""
     if not ID.fullmatch(path.name):
         raise ListingError(f"{path.name}: a listing is named for its plugin's id, such as plugins/wom")
+    return parse_listing(path.name, path.read_text())
+
+
+def parse_listing(plugin_id: str, text: str) -> Listing:
+    """A listing's text, for the plugin `plugin_id`. Raises `ListingError` naming each problem."""
     values: dict[str, str] = {}
-    for number, line in enumerate(path.read_text().splitlines(), start=1):
+    for number, line in enumerate(text.splitlines(), start=1):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         name, sep, value = line.partition("=")
         if not sep or name.strip() not in FIELDS:
-            raise ListingError(f"{path.name}:{number}: write only {' and '.join(f'{f}=' for f in FIELDS)} lines")
+            raise ListingError(f"{plugin_id}:{number}: write only {' and '.join(f'{f}=' for f in FIELDS)} lines")
         values[name.strip()] = value.strip()
     missing = [f for f in FIELDS if f not in values]
     if missing:
-        raise ListingError(f"{path.name}: missing {', '.join(missing)}")
+        raise ListingError(f"{plugin_id}: missing {', '.join(missing)}")
     if not REPOSITORY.fullmatch(values["repository"]):
-        raise ListingError(f"{path.name}: repository is the public HTTPS clone URL, on GitHub, GitLab or Codeberg")
+        raise ListingError(f"{plugin_id}: repository is the public HTTPS clone URL, on GitHub, GitLab or Codeberg")
     if not COMMIT.fullmatch(values["commit"]):
-        raise ListingError(f"{path.name}: commit is the full 40-character hash of the commit to list")
-    return Listing(path.name, values["repository"], values["commit"])
+        raise ListingError(f"{plugin_id}: commit is the full 40-character hash of the commit to list")
+    return Listing(plugin_id, values["repository"], values["commit"])
 
 
 def listings(directory: Path) -> list[Listing]:

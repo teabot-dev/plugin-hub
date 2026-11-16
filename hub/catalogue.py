@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from hub.history import history
 from hub.inspect import Plugin, fetch, inspect
 from hub.manifest import listings
 
@@ -18,8 +19,21 @@ SITE = Path("site")
 INSTALL = 'docker compose run --rm uv add "{requirement}"'
 
 
-def entry(plugin: Plugin) -> dict[str, Any]:
-    """One plugin as the catalogue lists it."""
+def version(plugin: Plugin) -> dict[str, Any]:
+    """One reviewed version of a plugin: what an instance installs, and what teabot it needs."""
+    return {
+        "commit": plugin.listing.commit,
+        "version": plugin.version,
+        "teabot": plugin.teabot,
+        "requirement": plugin.listing.requirement,
+        "external_connections": plugin.connections,
+        "dependencies": plugin.dependencies,
+    }
+
+
+def entry(plugin: Plugin, versions: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """One plugin as the catalogue lists it: its newest version at the top level, for teabot 1.4, and every
+    reviewed version, newest first, in `versions`, so an instance picks the newest its teabot runs."""
     listing = plugin.listing
     return {
         "id": listing.id,
@@ -34,6 +48,7 @@ def entry(plugin: Plugin) -> dict[str, Any]:
         "dependencies": plugin.dependencies,
         "licence": plugin.licence,
         "readme": plugin.readme,
+        "versions": versions if versions is not None else [version(plugin)],
     }
 
 
@@ -109,8 +124,8 @@ def main() -> None:
     entries: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory() as folder:
         for listing in listings(Path("plugins")):
-            plugin = inspect(listing, fetch(listing, Path(folder) / listing.id))
-            entries.append(entry(plugin))
+            found = [inspect(v, fetch(v, Path(folder) / f"{v.id}-{v.commit}")) for v in history(listing)]
+            entries.append(entry(found[0], [version(p) for p in found]))
     generated = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     SITE.mkdir(exist_ok=True)
     (SITE / "catalogue.json").write_text(json.dumps({"generated": generated, "plugins": entries}, indent=2) + "\n")

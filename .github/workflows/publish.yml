@@ -23,6 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          # The listings' history holds every reviewed version.
+          fetch-depth: 0
           persist-credentials: false
       - uses: astral-sh/setup-uv@v10.3.3
       - run: uv run hub-catalogue

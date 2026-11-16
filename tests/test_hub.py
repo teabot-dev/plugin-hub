@@ -111,3 +111,27 @@ def test_the_resolve_project_holds_teabot_and_every_listing() -> None:
     listing = Listing("wom", "https://github.com/someone/teabot-wom.git", COMMIT)
     text = project([listing])
     assert '"teabot"' in text and listing.requirement in text
+
+
+def test_every_reviewed_version_comes_from_the_listings_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess
+
+    from hub.history import history
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main")
+    (tmp_path / "plugins").mkdir()
+    older, newer = "a" * 40, "b" * 40
+    for commit in (older, newer):
+        (tmp_path / "plugins" / "wom").write_text(
+            f"repository=https://github.com/s/teabot-wom.git\ncommit={commit}\n"
+        )
+        git("add", "-A")
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", commit[:4])
+    monkeypatch.chdir(tmp_path)
+    current = read_listing(Path("plugins/wom"))
+    assert [v.commit for v in history(current)] == [newer, older]
