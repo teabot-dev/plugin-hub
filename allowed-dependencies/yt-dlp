@@ -1,0 +1,1 @@
+music (teabot-music) finds tracks and resolves their streams on YouTube and SoundCloud with yt-dlp. It reaches those hosts itself, under the hub's exception for media-streaming plugins.
