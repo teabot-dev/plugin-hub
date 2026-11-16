@@ -1,0 +1,1 @@
+music (teabot-music) needs yt-dlp-ejs, yt-dlp's scripts for solving YouTube's challenges, which yt-dlp runs in Deno.
