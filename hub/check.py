@@ -22,7 +22,7 @@ from hub.manifest import Listing, ListingError, read_listing
 
 TAIL = 40
 REPORT = Path("report.md")
-ALLOWED = Path("allowed-dependencies.txt")
+ALLOWED = Path("allowed-dependencies")
 REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)")
 
 
@@ -49,10 +49,12 @@ def run(name: str, command: list[str], cwd: Path) -> Step:
     return Step(name, done.returncode == 0, "\n".join(lines[-TAIL:]))
 
 
-def allowed() -> frozenset[str]:
-    """The packages, beyond teabot's own, that listed plugins may depend on, as normalised names."""
-    lines = ALLOWED.read_text().splitlines() if ALLOWED.exists() else []
-    return frozenset(_normal(line) for line in lines if line.strip() and not line.lstrip().startswith("#"))
+def allowed(folder: Path = ALLOWED) -> frozenset[str]:
+    """The packages, beyond teabot's own, that listed plugins may depend on: one file each in `folder`, named for
+    the package, holding why a plugin needs it."""
+    if not folder.is_dir():
+        return frozenset()
+    return frozenset(_normal(f.name) for f in folder.iterdir() if f.is_file() and f.name != "README.md")
 
 
 def _normal(name: str) -> str:
@@ -83,8 +85,8 @@ def dependency_step(root: Path, permitted: frozenset[str]) -> Step:
         return Step(
             "dependencies",
             False,
-            f"Not on the hub's allowlist: {listed}. Each needs a reason, in a pull request adding it to "
-            f"{ALLOWED}, which a maintainer reviews on its own.",
+            f"Not on the hub's allowlist: {listed}. Each needs its own pull request adding "
+            f"{ALLOWED}/<name>, saying why, which a maintainer reviews on its own.",
         )
     return Step("dependencies", True, f"Beyond teabot's own: {', '.join(found) or 'none'}")
 

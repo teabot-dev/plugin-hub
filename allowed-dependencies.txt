@@ -1,3 +1,0 @@
-# Packages, beyond teabot's own dependencies, that listed plugins may install. One name a line.
-# Each line is added in its own pull request, saying which plugin needs it and why. Native extensions get a
-# closer look, since one crash in them stops a whole teabot.

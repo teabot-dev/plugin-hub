@@ -1,5 +1,6 @@
 """The hub's tools: listings, inspecting a plugin's checkout, and the catalogue."""
 
+import re
 import textwrap
 from pathlib import Path
 
@@ -137,3 +138,18 @@ def test_a_plugin_must_name_its_author(tmp_path: Path) -> None:
 
 def test_the_hubs_own_page_sends_readers_to_the_docs() -> None:
     assert "https://teabot-dev.github.io/teabot/hub/" in REDIRECT and 'http-equiv="refresh"' in REDIRECT
+
+
+def test_every_allowed_dependency_is_named_as_pypi_names_it_and_says_why() -> None:
+    folder = Path(__file__).parents[1] / "allowed-dependencies"
+    for entry in folder.iterdir():
+        if entry.name == "README.md":
+            continue
+        assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", entry.name), f"{entry.name} is not a normalised name"
+        assert entry.read_text().strip(), f"{entry.name} does not say why a plugin needs it"
+
+
+def test_the_allowlist_is_read_from_its_files(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("about")
+    (tmp_path / "yt-dlp").write_text("music needs it")
+    assert check.allowed(tmp_path) == frozenset({"yt-dlp"})
